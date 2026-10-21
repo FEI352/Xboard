@@ -6,6 +6,7 @@ use App\Models\Server;
 use Illuminate\Support\Facades\File;
 use Symfony\Component\Yaml\Yaml;
 use App\Support\AbstractProtocol;
+use App\Utils\Helper;
 
 class Clash extends AbstractProtocol
 {
@@ -467,8 +468,13 @@ class Clash extends AbstractProtocol
             'down' => data_get($protocol_settings, 'bandwidth.down'),
             'skip-cert-verify' => (bool) data_get($protocol_settings, 'tls.allow_insecure', false),
         ];
+        // 端口跳跃有两个来源：
+        // 1) $server['ports'] —— ServerService::getAvailableServers() 对 port 含 '-' 的动态端口节点注入
+        // 2) protocol_settings.port_range —— Hysteria2/TUIC 的固定跳跃区间（如 20000-60000）
         if (isset($server['ports'])) {
             $array['ports'] = $server['ports'];
+        } elseif ($portRange = data_get($protocol_settings, 'port_range')) {
+            $array['ports'] = $portRange;
         }
         if ($hopInterval = data_get($protocol_settings, 'hop_interval')) {
             $array['hop-interval'] = (int) $hopInterval;

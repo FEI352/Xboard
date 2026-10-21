@@ -25,6 +25,45 @@ docker exec xboard-xboard-1 grep -c 'buildVless\|buildTuic\|buildHysteria' /www/
 
 **上游是否已合并**：❌ 截至 `81dd561c`（2026-10-21）未合并。
 
+
+## 1b. `app/Models/Server.php` — Hysteria2 的 `port_range` 被访问器丢弃
+
+**问题**：`Server::getProtocolSettingsAttribute()` 会调用 `castSettingsWithConfig()`，
+按 `PROTOCOL_CONFIGURATIONS` 白名单**过滤**字段。`TYPE_HYSTERIA` 的白名单里
+只有 `version / bandwidth / obfs / tls / hop_interval`，**没有 `port_range`**。
+
+结果：数据库里明明存着 `port_range: "20000-60000"`，但模型读出来就没了，
+订阅里的 Hysteria2 节点永远缺 `ports:` 字段，客户端端口跳跃失效。
+
+**改动**（+5 行）：
+```php
+'hop_interval' => ['type' => 'integer', 'default' => null],
+'port_range'   => ['type' => 'string',  'default' => null],   // ← 新增
+```
+
+**验证**：
+```bash
+curl -s -A 'ClashForAndroid/2.5.12' 'https://board.fja.su/api/v1/client/subscribe?token=<token>' \
+  | grep -c 'ports: 20000-60000'
+# 期望：17（19 个 Hy2 节点里 2 个未配置 port_range）
+```
+
+**上游是否已合并**：❌ 截至 `81dd561c` 未修。
+
+## 1c. `app/Protocols/Clash.php` — `ports` 字段的两个来源
+
+`buildHysteria()` 里端口跳跃有两个来源，必须都覆盖：
+
+```php
+if (isset($server['ports'])) {
+    $array['ports'] = $server['ports'];          // ① 动态端口节点（port 含 '-'）
+} elseif ($portRange = data_get($protocol_settings, 'port_range')) {
+    $array['ports'] = $portRange;                // ② Hy2/TUIC 固定跳跃区间
+}
+```
+
+上游只写了 ①，而 ① 只对 `port` 字段含 `-` 的节点成立。
+
 ## 2. `resources/views/admin/dashboard.blade.php` — 前端 UI 微调
 
 （历史定制，2026-06 前后：礼品卡 FAB 与 BackTop 按钮重叠修复。

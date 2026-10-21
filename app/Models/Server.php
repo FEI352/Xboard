@@ -278,7 +278,10 @@ class Server extends Model
                 ]
             ],
             'tls' => self::TLS_CONFIGURATION,
-            'hop_interval' => ['type' => 'integer', 'default' => null]
+            'hop_interval' => ['type' => 'integer', 'default' => null],
+            // 端口跳跃区间（如 20000-60000）。缺失此项会导致 castSettingsWithConfig()
+            // 在访问器层就把 port_range 丢掉，订阅永远输出不了 ports。
+            'port_range' => ['type' => 'string', 'default' => null]
         ],
         self::TYPE_TUIC => [
             'version' => ['type' => 'integer', 'default' => 5],
